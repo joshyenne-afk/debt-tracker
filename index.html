@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debt Tracker | Who Owes Who</title>
+    <meta name="description" content="Simple debt tracker between two people. Track money owed and sync in real-time.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Welcome/Join Screen -->
+        <div id="welcome-screen" class="screen active">
+            <div class="setup-card">
+                <div class="logo">
+                    <span class="logo-icon">⚖️</span>
+                    <h1>Debt Tracker</h1>
+                    <p class="tagline">Keep it fair, keep it synced</p>
+                </div>
+
+                <div class="welcome-options">
+                    <button type="button" id="new-tracker-btn" class="primary-btn">
+                        <span>➕</span> Create New Tracker
+                    </button>
+
+                    <div class="divider-text">
+                        <span>or join existing</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="join-code">Tracker Code</label>
+                        <input type="text" id="join-code" placeholder="Enter code to join..." autocomplete="off">
+                    </div>
+                    <button type="button" id="join-btn" class="secondary-btn">
+                        Join Tracker
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup Screen (for new trackers) -->
+        <div id="setup-screen" class="screen">
+            <div class="setup-card">
+                <div class="logo">
+                    <span class="logo-icon">⚖️</span>
+                    <h1>New Tracker</h1>
+                    <p class="tagline">Enter the two names</p>
+                </div>
+
+                <div class="setup-form">
+                    <div class="input-group">
+                        <label for="person1">Person 1</label>
+                        <input type="text" id="person1" placeholder="Enter name..." autocomplete="off">
+                    </div>
+
+                    <div class="vs-divider">
+                        <span>VS</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="person2">Person 2</label>
+                        <input type="text" id="person2" placeholder="Enter name..." autocomplete="off">
+                    </div>
+
+                    <button type="button" id="start-btn" class="primary-btn">
+                        Create Tracker
+                        <span class="btn-arrow">→</span>
+                    </button>
+
+                    <button type="button" id="back-to-welcome-btn" class="text-btn">
+                        ← Back
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tracker Screen -->
+        <div id="tracker-screen" class="screen">
+            <!-- Header with Balance -->
+            <header class="tracker-header">
+                <button class="header-btn back-btn" id="back-btn" title="Settings">
+                    <span>⚙️</span>
+                </button>
+                <div class="balance-display">
+                    <div class="balance-text" id="balance-text">All squared up! ✨</div>
+                </div>
+                <button class="header-btn share-btn" id="share-btn" title="Share this tracker">
+                    <span>🔗</span>
+                </button>
+            </header>
+
+            <!-- Share Modal -->
+            <div id="share-modal" class="modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Share This Tracker</h3>
+                        <button class="modal-close" id="share-modal-close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="share-instructions">Share this code with the other person:</p>
+                        <div class="share-code-display">
+                            <span id="share-code-text"></span>
+                            <button id="copy-code-btn" class="copy-btn" title="Copy code">📋</button>
+                        </div>
+                        <p class="share-note">Or share the full link:</p>
+                        <div class="share-link-display">
+                            <input type="text" id="share-link-input" readonly>
+                            <button id="copy-link-btn" class="copy-btn" title="Copy link">📋</button>
+                        </div>
+                        <div id="copy-success" class="copy-success">Copied! ✓</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split View -->
+            <main class="split-view">
+                <!-- Person 1 Column -->
+                <div class="person-column" data-person="1" id="person1-column">
+                    <div class="person-header">
+                        <h2 class="person-name" id="person1-name">Person 1</h2>
+                    </div>
+
+                    <!-- Quick Add -->
+                    <div class="quick-add">
+                        <div class="amount-input-wrapper">
+                            <span class="currency-symbol">$</span>
+                            <input type="number" class="amount-input" id="person1-amount" placeholder="0" step="5"
+                                min="0">
+                            <div class="amount-arrows">
+                                <button class="arrow-btn up" data-person="1" data-dir="up">▲</button>
+                                <button class="arrow-btn down" data-person="1" data-dir="down">▼</button>
+                            </div>
+                        </div>
+                        <input type="text" class="description-input" id="person1-desc"
+                            placeholder="What's it for? (optional)">
+                        <button class="add-btn" data-person="1">Add Entry</button>
+                    </div>
+
+                    <!-- Entries List -->
+                    <div class="entries-list" id="person1-entries"></div>
+                </div>
+
+                <!-- Vertical Divider -->
+                <div class="vertical-divider">
+                    <div class="divider-line"></div>
+                </div>
+
+                <!-- Person 2 Column -->
+                <div class="person-column" data-person="2" id="person2-column">
+                    <div class="person-header">
+                        <h2 class="person-name" id="person2-name">Person 2</h2>
+                    </div>
+
+                    <!-- Quick Add -->
+                    <div class="quick-add">
+                        <div class="amount-input-wrapper">
+                            <span class="currency-symbol">$</span>
+                            <input type="number" class="amount-input" id="person2-amount" placeholder="0" step="5"
+                                min="0">
+                            <div class="amount-arrows">
+                                <button class="arrow-btn up" data-person="2" data-dir="up">▲</button>
+                                <button class="arrow-btn down" data-person="2" data-dir="down">▼</button>
+                            </div>
+                        </div>
+                        <input type="text" class="description-input" id="person2-desc"
+                            placeholder="What's it for? (optional)">
+                        <button class="add-btn" data-person="2">Add Entry</button>
+                    </div>
+
+                    <!-- Entries List -->
+                    <div class="entries-list" id="person2-entries"></div>
+                </div>
+            </main>
+
+            <!-- Sync Status -->
+            <div class="sync-status" id="sync-status">
+                <span class="sync-icon">🔄</span>
+                <span class="sync-text">Syncing...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
