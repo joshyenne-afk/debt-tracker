@@ -32,6 +32,14 @@
                         <span>➕</span> Create New Tracker
                     </button>
 
+                    <!-- Recent Trackers Section -->
+                    <div id="history-section" class="history-section" style="display: none;">
+                        <div class="divider-text">
+                            <span>my trackers</span>
+                        </div>
+                        <div id="tracker-history" class="tracker-history"></div>
+                    </div>
+
                     <div class="divider-text">
                         <span>or join existing</span>
                     </div>
@@ -87,8 +95,8 @@
         <div id="tracker-screen" class="screen">
             <!-- Header with Balance -->
             <header class="tracker-header">
-                <button class="header-btn back-btn" id="back-btn" title="Settings">
-                    <span>⚙️</span>
+                <button class="header-btn switch-btn" id="switch-btn" title="Switch Tracker">
+                    <span>📋</span>
                 </button>
                 <div class="balance-display">
                     <div class="balance-text" id="balance-text">All squared up! ✨</div>
@@ -118,6 +126,23 @@
                             <button id="copy-link-btn" class="copy-btn" title="Copy link">📋</button>
                         </div>
                         <div id="copy-success" class="copy-success">Copied! ✓</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Switcher Modal -->
+            <div id="switcher-modal" class="modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content switcher-content">
+                    <div class="modal-header">
+                        <h3>Switch Tracker</h3>
+                        <button class="modal-close" id="switcher-modal-close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="switcher-list" class="switcher-list"></div>
+                        <button type="button" id="switcher-new-btn" class="secondary-btn switcher-new-btn">
+                            <span>➕</span> New Tracker
+                        </button>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,6 @@
 // ================================
 // Debt Tracker App with Firebase Sync
+// Multi-tracker support with cross-device history
 // ================================
 
 // Firebase Configuration
@@ -18,10 +19,23 @@ class DebtTracker {
         this.trackerId = null;
         this.db = null;
         this.trackerRef = null;
+        this.userRef = null;
         this.data = this.getDefaultData();
         this.isFirebaseReady = false;
+        this.userId = this.getOrCreateUserId();
+        this.trackerHistory = [];
 
         this.init();
+    }
+
+    // Get or create a persistent user ID for this browser
+    getOrCreateUserId() {
+        let userId = localStorage.getItem('debtTrackerUserId');
+        if (!userId) {
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('debtTrackerUserId', userId);
+        }
+        return userId;
     }
 
     // Default data structure
@@ -38,7 +52,7 @@ class DebtTracker {
 
     // Generate a random tracker ID
     generateTrackerId() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let result = '';
         for (let i = 0; i < 6; i++) {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -47,14 +61,18 @@ class DebtTracker {
     }
 
     // Initialize the app
-    init() {
+    async init() {
         // Initialize Firebase
         try {
             if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
                 firebase.initializeApp(firebaseConfig);
                 this.db = firebase.database();
                 this.isFirebaseReady = true;
+                this.userRef = this.db.ref('users/' + this.userId);
                 console.log('Firebase initialized');
+                
+                // Load user's tracker history from Firebase
+                await this.loadUserHistory();
             } else {
                 console.warn('Firebase not configured - using localStorage fallback');
                 this.isFirebaseReady = false;
@@ -70,18 +88,148 @@ class DebtTracker {
         const urlParams = new URLSearchParams(window.location.search);
         const urlTrackerId = urlParams.get('t');
 
-        // Check localStorage for last used tracker
-        const savedTrackerId = localStorage.getItem('lastTrackerId');
-
         if (urlTrackerId) {
             // Join from URL
             this.joinTracker(urlTrackerId.toUpperCase());
-        } else if (savedTrackerId && this.isFirebaseReady) {
-            // Resume last tracker
-            this.joinTracker(savedTrackerId);
+        } else if (this.trackerHistory.length > 0) {
+            // Auto-open the most recently accessed tracker
+            const lastTracker = this.trackerHistory[0];
+            this.joinTracker(lastTracker.trackerId);
         } else {
             // Show welcome screen
             this.showScreen('welcome-screen');
+        }
+    }
+
+    // Load user's tracker history from Firebase
+    async loadUserHistory() {
+        if (!this.isFirebaseReady || !this.userRef) return;
+
+        try {
+            const snapshot = await this.userRef.child('trackerHistory').once('value');
+            if (snapshot.exists()) {
+                const historyObj = snapshot.val();
+                // Convert object to array and sort by lastAccessed descending
+                this.trackerHistory = Object.values(historyObj)
+                    .sort((a, b) => b.lastAccessed - a.lastAccessed);
+            }
+        } catch (error) {
+            console.error('Error loading history:', error);
+        }
+
+        // Update the welcome screen with history
+        this.renderTrackerHistory();
+    }
+
+    // Save tracker to user's history
+    async saveToHistory(trackerId, person1, person2) {
+        const historyEntry = {
+            trackerId: trackerId,
+            person1: person1,
+            person2: person2,
+            lastAccessed: Date.now()
+        };
+
+        // Update local history
+        const existingIndex = this.trackerHistory.findIndex(h => h.trackerId === trackerId);
+        if (existingIndex >= 0) {
+            this.trackerHistory.splice(existingIndex, 1);
+        }
+        this.trackerHistory.unshift(historyEntry);
+
+        // Keep only last 20 trackers
+        this.trackerHistory = this.trackerHistory.slice(0, 20);
+
+        // Save to Firebase
+        if (this.isFirebaseReady && this.userRef) {
+            const historyObj = {};
+            this.trackerHistory.forEach(h => {
+                historyObj[h.trackerId] = h;
+            });
+            await this.userRef.child('trackerHistory').set(historyObj);
+        }
+
+        // Update localStorage as fallback
+        localStorage.setItem('debtTrackerHistory', JSON.stringify(this.trackerHistory));
+
+        // Update UI
+        this.renderTrackerHistory();
+    }
+
+    // Remove tracker from history
+    async removeFromHistory(trackerId) {
+        this.trackerHistory = this.trackerHistory.filter(h => h.trackerId !== trackerId);
+
+        // Save to Firebase
+        if (this.isFirebaseReady && this.userRef) {
+            const historyObj = {};
+            this.trackerHistory.forEach(h => {
+                historyObj[h.trackerId] = h;
+            });
+            await this.userRef.child('trackerHistory').set(historyObj);
+        }
+
+        // Update localStorage
+        localStorage.setItem('debtTrackerHistory', JSON.stringify(this.trackerHistory));
+
+        // Update UI
+        this.renderTrackerHistory();
+    }
+
+    // Render tracker history on welcome screen
+    renderTrackerHistory() {
+        const container = document.getElementById('tracker-history');
+        const section = document.getElementById('history-section');
+        
+        if (!container || !section) return;
+
+        if (this.trackerHistory.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = 'block';
+        container.innerHTML = this.trackerHistory.map(h => `
+            <div class="history-item" data-tracker-id="${h.trackerId}">
+                <div class="history-info" onclick="tracker.joinTracker('${h.trackerId}')">
+                    <div class="history-names">${this.escapeHtml(h.person1)} ↔ ${this.escapeHtml(h.person2)}</div>
+                    <div class="history-code">${h.trackerId}</div>
+                </div>
+                <button class="history-delete" onclick="event.stopPropagation(); tracker.removeFromHistory('${h.trackerId}')" title="Remove">×</button>
+            </div>
+        `).join('');
+    }
+
+    // Render tracker switcher modal
+    renderTrackerSwitcher() {
+        const container = document.getElementById('switcher-list');
+        if (!container) return;
+
+        if (this.trackerHistory.length === 0) {
+            container.innerHTML = '<div class="empty-state">No other trackers</div>';
+            return;
+        }
+
+        container.innerHTML = this.trackerHistory.map(h => `
+            <div class="switcher-item ${h.trackerId === this.trackerId ? 'active' : ''}" onclick="tracker.switchToTracker('${h.trackerId}')">
+                <div class="switcher-info">
+                    <div class="switcher-names">${this.escapeHtml(h.person1)} ↔ ${this.escapeHtml(h.person2)}</div>
+                    <div class="switcher-code">${h.trackerId}</div>
+                </div>
+                ${h.trackerId === this.trackerId ? '<span class="switcher-current">Current</span>' : ''}
+            </div>
+        `).join('');
+    }
+
+    // Switch to a different tracker
+    switchToTracker(trackerId) {
+        this.hideSwitcherModal();
+        if (trackerId !== this.trackerId) {
+            // Detach current listener
+            if (this.trackerRef) {
+                this.trackerRef.off();
+            }
+            this.joinTracker(trackerId);
         }
     }
 
@@ -113,13 +261,21 @@ class DebtTracker {
             this.showScreen('welcome-screen');
         });
 
-        // Tracker screen
-        document.getElementById('back-btn').addEventListener('click', () => this.showScreen('setup-screen'));
+        // Tracker screen - Switch button
+        document.getElementById('switch-btn').addEventListener('click', () => this.showSwitcherModal());
 
         // Share button
         document.getElementById('share-btn').addEventListener('click', () => this.showShareModal());
         document.getElementById('share-modal-close').addEventListener('click', () => this.hideShareModal());
         document.querySelector('#share-modal .modal-backdrop').addEventListener('click', () => this.hideShareModal());
+
+        // Switcher modal
+        document.getElementById('switcher-modal-close').addEventListener('click', () => this.hideSwitcherModal());
+        document.querySelector('#switcher-modal .modal-backdrop').addEventListener('click', () => this.hideSwitcherModal());
+        document.getElementById('switcher-new-btn').addEventListener('click', () => {
+            this.hideSwitcherModal();
+            this.showScreen('setup-screen');
+        });
 
         document.getElementById('copy-code-btn').addEventListener('click', () => this.copyToClipboard('code'));
         document.getElementById('copy-link-btn').addEventListener('click', () => this.copyToClipboard('link'));
@@ -167,7 +323,7 @@ class DebtTracker {
     }
 
     // Handle creating a new tracker
-    handleStart() {
+    async handleStart() {
         const person1 = document.getElementById('person1').value.trim();
         const person2 = document.getElementById('person2').value.trim();
 
@@ -186,14 +342,16 @@ class DebtTracker {
             createdAt: Date.now()
         };
 
-        // Save to Firebase or localStorage
+        // Save to Firebase
         if (this.isFirebaseReady) {
             this.trackerRef = this.db.ref('trackers/' + this.trackerId);
-            this.trackerRef.set(this.data);
+            await this.trackerRef.set(this.data);
             this.setupRealtimeListener();
         }
 
-        localStorage.setItem('lastTrackerId', this.trackerId);
+        // Save to user's history
+        await this.saveToHistory(this.trackerId, person1, person2);
+
         this.showTrackerScreen();
     }
 
@@ -206,7 +364,7 @@ class DebtTracker {
             this.trackerRef = this.db.ref('trackers/' + trackerId);
 
             // Check if tracker exists
-            this.trackerRef.once('value', (snapshot) => {
+            this.trackerRef.once('value', async (snapshot) => {
                 if (snapshot.exists()) {
                     this.data = snapshot.val();
                     // Ensure entries object exists
@@ -216,7 +374,9 @@ class DebtTracker {
                     if (!this.data.entries.person1) this.data.entries.person1 = [];
                     if (!this.data.entries.person2) this.data.entries.person2 = [];
 
-                    localStorage.setItem('lastTrackerId', trackerId);
+                    // Save to user's history
+                    await this.saveToHistory(trackerId, this.data.person1, this.data.person2);
+
                     this.setupRealtimeListener();
                     this.showTrackerScreen();
                     this.hideSyncStatus();
@@ -287,6 +447,16 @@ class DebtTracker {
 
     hideShareModal() {
         document.getElementById('share-modal').classList.remove('active');
+    }
+
+    // Show switcher modal
+    showSwitcherModal() {
+        this.renderTrackerSwitcher();
+        document.getElementById('switcher-modal').classList.add('active');
+    }
+
+    hideSwitcherModal() {
+        document.getElementById('switcher-modal').classList.remove('active');
     }
 
     // Copy to clipboard
