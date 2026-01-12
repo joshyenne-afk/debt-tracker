@@ -1,6 +1,6 @@
 // ================================
 // Debt Tracker App with Firebase Sync
-// Multi-tracker support with cross-device history
+// Multi-tracker support with device-local bookmarks
 // ================================
 
 // Firebase Configuration
@@ -19,23 +19,115 @@ class DebtTracker {
         this.trackerId = null;
         this.db = null;
         this.trackerRef = null;
-        this.userRef = null;
         this.data = this.getDefaultData();
         this.isFirebaseReady = false;
-        this.userId = this.getOrCreateUserId();
-        this.trackerHistory = [];
+        this.bookmarks = this.loadBookmarks();
 
         this.init();
     }
 
-    // Get or create a persistent user ID for this browser
-    getOrCreateUserId() {
-        let userId = localStorage.getItem('debtTrackerUserId');
-        if (!userId) {
-            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('debtTrackerUserId', userId);
+    // Load bookmarks from localStorage (device-specific)
+    loadBookmarks() {
+        try {
+            const saved = localStorage.getItem('debtTrackerBookmarks');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            console.error('Error loading bookmarks:', e);
+            return [];
         }
-        return userId;
+    }
+
+    // Save bookmarks to localStorage
+    saveBookmarks() {
+        try {
+            localStorage.setItem('debtTrackerBookmarks', JSON.stringify(this.bookmarks));
+        } catch (e) {
+            console.error('Error saving bookmarks:', e);
+        }
+    }
+
+    // Add a tracker to bookmarks
+    addBookmark(trackerId, person1, person2) {
+        // Check if already bookmarked
+        const existing = this.bookmarks.find(b => b.trackerId === trackerId);
+        if (existing) {
+            // Update the existing bookmark with latest names
+            existing.person1 = person1;
+            existing.person2 = person2;
+            existing.lastAccessed = Date.now();
+        } else {
+            this.bookmarks.unshift({
+                trackerId: trackerId,
+                person1: person1,
+                person2: person2,
+                createdAt: Date.now(),
+                lastAccessed: Date.now()
+            });
+        }
+
+        // Keep only last 50 bookmarks
+        this.bookmarks = this.bookmarks.slice(0, 50);
+        this.saveBookmarks();
+        this.renderBookmarks();
+        this.updateBookmarkButton();
+    }
+
+    // Remove a tracker from bookmarks
+    removeBookmark(trackerId) {
+        this.bookmarks = this.bookmarks.filter(b => b.trackerId !== trackerId);
+        this.saveBookmarks();
+        this.renderBookmarks();
+        this.updateBookmarkButton();
+    }
+
+    // Check if current tracker is bookmarked
+    isBookmarked(trackerId) {
+        return this.bookmarks.some(b => b.trackerId === trackerId);
+    }
+
+    // Toggle bookmark for current tracker
+    toggleBookmark() {
+        if (!this.trackerId || !this.data.person1) return;
+
+        if (this.isBookmarked(this.trackerId)) {
+            this.removeBookmark(this.trackerId);
+            this.showToast('Bookmark removed');
+        } else {
+            this.addBookmark(this.trackerId, this.data.person1, this.data.person2);
+            this.showToast('Tracker bookmarked!');
+        }
+    }
+
+    // Update the bookmark button appearance
+    updateBookmarkButton() {
+        const btn = document.getElementById('bookmark-btn');
+        const icon = document.getElementById('bookmark-icon');
+        if (!btn || !icon) return;
+
+        if (this.isBookmarked(this.trackerId)) {
+            btn.classList.add('bookmarked');
+            icon.textContent = '★';
+        } else {
+            btn.classList.remove('bookmarked');
+            icon.textContent = '☆';
+        }
+    }
+
+    // Show a toast notification
+    showToast(message) {
+        const existingToast = document.querySelector('.toast');
+        if (existingToast) existingToast.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
     }
 
     // Default data structure
@@ -68,11 +160,7 @@ class DebtTracker {
                 firebase.initializeApp(firebaseConfig);
                 this.db = firebase.database();
                 this.isFirebaseReady = true;
-                this.userRef = this.db.ref('users/' + this.userId);
                 console.log('Firebase initialized');
-                
-                // Load user's tracker history from Firebase
-                await this.loadUserHistory();
             } else {
                 console.warn('Firebase not configured - using localStorage fallback');
                 this.isFirebaseReady = false;
@@ -83,6 +171,7 @@ class DebtTracker {
         }
 
         this.bindEvents();
+        this.renderBookmarks();
 
         // Check if there's a tracker ID in the URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -91,159 +180,86 @@ class DebtTracker {
         if (urlTrackerId) {
             // Join from URL
             this.joinTracker(urlTrackerId.toUpperCase());
-        } else if (this.trackerHistory.length > 0) {
-            // Auto-open the most recently accessed tracker
-            const lastTracker = this.trackerHistory[0];
-            this.joinTracker(lastTracker.trackerId);
         } else {
-            // Show welcome screen
+            // Show homepage
             this.showScreen('welcome-screen');
         }
     }
 
-    // Load user's tracker history from Firebase
-    async loadUserHistory() {
-        if (!this.isFirebaseReady || !this.userRef) return;
-
-        try {
-            const snapshot = await this.userRef.child('trackerHistory').once('value');
-            if (snapshot.exists()) {
-                const historyObj = snapshot.val();
-                // Convert object to array and sort by lastAccessed descending
-                this.trackerHistory = Object.values(historyObj)
-                    .sort((a, b) => b.lastAccessed - a.lastAccessed);
-            }
-        } catch (error) {
-            console.error('Error loading history:', error);
-        }
-
-        // Update the welcome screen with history
-        this.renderTrackerHistory();
-    }
-
-    // Save tracker to user's history
-    async saveToHistory(trackerId, person1, person2) {
-        const historyEntry = {
-            trackerId: trackerId,
-            person1: person1,
-            person2: person2,
-            lastAccessed: Date.now()
-        };
-
-        // Update local history
-        const existingIndex = this.trackerHistory.findIndex(h => h.trackerId === trackerId);
-        if (existingIndex >= 0) {
-            this.trackerHistory.splice(existingIndex, 1);
-        }
-        this.trackerHistory.unshift(historyEntry);
-
-        // Keep only last 20 trackers
-        this.trackerHistory = this.trackerHistory.slice(0, 20);
-
-        // Save to Firebase
-        if (this.isFirebaseReady && this.userRef) {
-            const historyObj = {};
-            this.trackerHistory.forEach(h => {
-                historyObj[h.trackerId] = h;
-            });
-            await this.userRef.child('trackerHistory').set(historyObj);
-        }
-
-        // Update localStorage as fallback
-        localStorage.setItem('debtTrackerHistory', JSON.stringify(this.trackerHistory));
-
-        // Update UI
-        this.renderTrackerHistory();
-    }
-
-    // Remove tracker from history
-    async removeFromHistory(trackerId) {
-        this.trackerHistory = this.trackerHistory.filter(h => h.trackerId !== trackerId);
-
-        // Save to Firebase
-        if (this.isFirebaseReady && this.userRef) {
-            const historyObj = {};
-            this.trackerHistory.forEach(h => {
-                historyObj[h.trackerId] = h;
-            });
-            await this.userRef.child('trackerHistory').set(historyObj);
-        }
-
-        // Update localStorage
-        localStorage.setItem('debtTrackerHistory', JSON.stringify(this.trackerHistory));
-
-        // Update UI
-        this.renderTrackerHistory();
-    }
-
-    // Render tracker history on welcome screen
-    renderTrackerHistory() {
-        const container = document.getElementById('tracker-history');
-        const section = document.getElementById('history-section');
-        
-        if (!container || !section) return;
-
-        if (this.trackerHistory.length === 0) {
-            section.style.display = 'none';
-            return;
-        }
-
-        section.style.display = 'block';
-        container.innerHTML = this.trackerHistory.map(h => `
-            <div class="history-item" data-tracker-id="${h.trackerId}">
-                <div class="history-info" onclick="tracker.joinTracker('${h.trackerId}')">
-                    <div class="history-names">${this.escapeHtml(h.person1)} ↔ ${this.escapeHtml(h.person2)}</div>
-                    <div class="history-code">${h.trackerId}</div>
-                </div>
-                <button class="history-delete" onclick="event.stopPropagation(); tracker.removeFromHistory('${h.trackerId}')" title="Remove">×</button>
-            </div>
-        `).join('');
-    }
-
-    // Render tracker switcher modal
-    renderTrackerSwitcher() {
-        const container = document.getElementById('switcher-list');
+    // Render bookmarks on homepage
+    renderBookmarks() {
+        const container = document.getElementById('bookmarks-list');
         if (!container) return;
 
-        if (this.trackerHistory.length === 0) {
-            container.innerHTML = '<div class="empty-state">No other trackers</div>';
+        if (this.bookmarks.length === 0) {
+            container.innerHTML = `
+                <div class="empty-bookmarks">
+                    <span class="empty-icon">📋</span>
+                    <p>No bookmarked trackers yet</p>
+                    <p class="empty-hint">Create a new tracker or import one below</p>
+                </div>
+            `;
             return;
         }
 
-        container.innerHTML = this.trackerHistory.map(h => `
-            <div class="switcher-item ${h.trackerId === this.trackerId ? 'active' : ''}" onclick="tracker.switchToTracker('${h.trackerId}')">
-                <div class="switcher-info">
-                    <div class="switcher-names">${this.escapeHtml(h.person1)} ↔ ${this.escapeHtml(h.person2)}</div>
-                    <div class="switcher-code">${h.trackerId}</div>
+        // Sort by last accessed
+        const sortedBookmarks = [...this.bookmarks].sort((a, b) =>
+            (b.lastAccessed || 0) - (a.lastAccessed || 0)
+        );
+
+        container.innerHTML = sortedBookmarks.map(b => `
+            <div class="bookmark-item" data-tracker-id="${b.trackerId}">
+                <div class="bookmark-info" onclick="tracker.openBookmark('${b.trackerId}')">
+                    <div class="bookmark-names">${this.escapeHtml(b.person1)} ↔ ${this.escapeHtml(b.person2)}</div>
+                    <div class="bookmark-code">${b.trackerId}</div>
                 </div>
-                ${h.trackerId === this.trackerId ? '<span class="switcher-current">Current</span>' : ''}
+                <button class="bookmark-delete" onclick="event.stopPropagation(); tracker.removeBookmark('${b.trackerId}')" title="Remove bookmark">×</button>
             </div>
         `).join('');
     }
 
-    // Switch to a different tracker
-    switchToTracker(trackerId) {
-        this.hideSwitcherModal();
-        if (trackerId !== this.trackerId) {
-            // Detach current listener
-            if (this.trackerRef) {
-                this.trackerRef.off();
-            }
-            this.joinTracker(trackerId);
+    // Open a bookmarked tracker
+    openBookmark(trackerId) {
+        // Update last accessed
+        const bookmark = this.bookmarks.find(b => b.trackerId === trackerId);
+        if (bookmark) {
+            bookmark.lastAccessed = Date.now();
+            this.saveBookmarks();
         }
+        this.joinTracker(trackerId);
     }
 
     // Bind all event listeners
     bindEvents() {
-        // Welcome screen buttons
+        // Homepage - New tracker button
         document.getElementById('new-tracker-btn').addEventListener('click', () => {
             this.showScreen('setup-screen');
         });
 
+        // Homepage - Join tracker button (shows form)
+        document.getElementById('join-tracker-btn').addEventListener('click', () => {
+            const joinForm = document.getElementById('join-form');
+            const quickActions = document.querySelector('.quick-actions');
+            joinForm.style.display = 'block';
+            quickActions.style.display = 'none';
+            document.getElementById('join-code').focus();
+        });
+
+        // Join form - Cancel button
+        document.getElementById('join-cancel-btn').addEventListener('click', () => {
+            document.getElementById('join-form').style.display = 'none';
+            document.querySelector('.quick-actions').style.display = 'grid';
+            document.getElementById('join-code').value = '';
+        });
+
+        // Join form - Submit button
         document.getElementById('join-btn').addEventListener('click', () => {
             const code = document.getElementById('join-code').value.trim().toUpperCase();
             if (code) {
                 this.joinTracker(code);
+                document.getElementById('join-form').style.display = 'none';
+                document.querySelector('.quick-actions').style.display = 'grid';
+                document.getElementById('join-code').value = '';
             } else {
                 this.shake(document.getElementById('join-code'));
             }
@@ -255,27 +271,55 @@ class DebtTracker {
             }
         });
 
+        // Import tracker button
+        document.getElementById('import-tracker-btn').addEventListener('click', () => {
+            document.getElementById('import-form').style.display = 'block';
+            document.getElementById('import-code').focus();
+        });
+
+        // Import form - Cancel button
+        document.getElementById('import-cancel-btn').addEventListener('click', () => {
+            document.getElementById('import-form').style.display = 'none';
+            document.getElementById('import-code').value = '';
+        });
+
+        // Import form - Submit button
+        document.getElementById('import-submit-btn').addEventListener('click', () => {
+            this.handleImport();
+        });
+
+        document.getElementById('import-code').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.handleImport();
+            }
+        });
+
         // Setup screen
         document.getElementById('start-btn').addEventListener('click', () => this.handleStart());
         document.getElementById('back-to-welcome-btn').addEventListener('click', () => {
             this.showScreen('welcome-screen');
         });
 
-        // Tracker screen - Switch button
-        document.getElementById('switch-btn').addEventListener('click', () => this.showSwitcherModal());
+        // Tracker screen - Home button
+        document.getElementById('home-btn').addEventListener('click', () => {
+            // Detach current listener
+            if (this.trackerRef) {
+                this.trackerRef.off();
+            }
+            this.trackerId = null;
+            // Clear URL parameter
+            window.history.replaceState({}, '', window.location.pathname);
+            this.showScreen('welcome-screen');
+            this.renderBookmarks();
+        });
+
+        // Bookmark button
+        document.getElementById('bookmark-btn').addEventListener('click', () => this.toggleBookmark());
 
         // Share button
         document.getElementById('share-btn').addEventListener('click', () => this.showShareModal());
         document.getElementById('share-modal-close').addEventListener('click', () => this.hideShareModal());
         document.querySelector('#share-modal .modal-backdrop').addEventListener('click', () => this.hideShareModal());
-
-        // Switcher modal
-        document.getElementById('switcher-modal-close').addEventListener('click', () => this.hideSwitcherModal());
-        document.querySelector('#switcher-modal .modal-backdrop').addEventListener('click', () => this.hideSwitcherModal());
-        document.getElementById('switcher-new-btn').addEventListener('click', () => {
-            this.hideSwitcherModal();
-            this.showScreen('setup-screen');
-        });
 
         document.getElementById('copy-code-btn').addEventListener('click', () => this.copyToClipboard('code'));
         document.getElementById('copy-link-btn').addEventListener('click', () => this.copyToClipboard('link'));
@@ -314,6 +358,38 @@ class DebtTracker {
         });
     }
 
+    // Handle import submission
+    async handleImport() {
+        const code = document.getElementById('import-code').value.trim().toUpperCase();
+        if (!code || code.length !== 6) {
+            this.shake(document.getElementById('import-code'));
+            return;
+        }
+
+        // Check if tracker exists in Firebase
+        if (this.isFirebaseReady) {
+            const trackerRef = this.db.ref('trackers/' + code);
+            const snapshot = await trackerRef.once('value');
+
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                this.addBookmark(code, data.person1 || 'Person 1', data.person2 || 'Person 2');
+                this.showToast('Tracker imported!');
+                document.getElementById('import-form').style.display = 'none';
+                document.getElementById('import-code').value = '';
+            } else {
+                this.shake(document.getElementById('import-code'));
+                this.showToast('Tracker not found');
+            }
+        } else {
+            // Without Firebase, just add to bookmarks with placeholder names
+            this.addBookmark(code, 'Unknown', 'Unknown');
+            this.showToast('Tracker imported (offline)');
+            document.getElementById('import-form').style.display = 'none';
+            document.getElementById('import-code').value = '';
+        }
+    }
+
     // Show a specific screen
     showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(screen => {
@@ -349,8 +425,8 @@ class DebtTracker {
             this.setupRealtimeListener();
         }
 
-        // Save to user's history
-        await this.saveToHistory(this.trackerId, person1, person2);
+        // Auto-bookmark new trackers
+        this.addBookmark(this.trackerId, person1, person2);
 
         this.showTrackerScreen();
     }
@@ -374,14 +450,16 @@ class DebtTracker {
                     if (!this.data.entries.person1) this.data.entries.person1 = [];
                     if (!this.data.entries.person2) this.data.entries.person2 = [];
 
-                    // Save to user's history
-                    await this.saveToHistory(trackerId, this.data.person1, this.data.person2);
+                    // Update bookmark if it exists
+                    if (this.isBookmarked(trackerId)) {
+                        this.addBookmark(trackerId, this.data.person1, this.data.person2);
+                    }
 
                     this.setupRealtimeListener();
                     this.showTrackerScreen();
                     this.hideSyncStatus();
                 } else {
-                    alert('Tracker not found. Check the code and try again.');
+                    this.showToast('Tracker not found');
                     this.showScreen('welcome-screen');
                     this.hideSyncStatus();
                 }
@@ -393,7 +471,7 @@ class DebtTracker {
                 this.data = JSON.parse(saved);
                 this.showTrackerScreen();
             } else {
-                alert('Tracker not found.');
+                this.showToast('Tracker not found');
                 this.showScreen('welcome-screen');
             }
             this.hideSyncStatus();
@@ -429,6 +507,7 @@ class DebtTracker {
 
         this.renderEntries();
         this.updateBalance();
+        this.updateBookmarkButton();
         this.showScreen('tracker-screen');
 
         // Update URL with tracker ID
@@ -447,16 +526,6 @@ class DebtTracker {
 
     hideShareModal() {
         document.getElementById('share-modal').classList.remove('active');
-    }
-
-    // Show switcher modal
-    showSwitcherModal() {
-        this.renderTrackerSwitcher();
-        document.getElementById('switcher-modal').classList.add('active');
-    }
-
-    hideSwitcherModal() {
-        document.getElementById('switcher-modal').classList.remove('active');
     }
 
     // Copy to clipboard
@@ -652,7 +721,7 @@ class DebtTracker {
     }
 }
 
-// Add shake animation
+// Add shake animation and toast styles
 const style = document.createElement('style');
 style.textContent = `
     @keyframes shake {
@@ -661,6 +730,28 @@ style.textContent = `
         40% { transform: translateX(10px); }
         60% { transform: translateX(-10px); }
         80% { transform: translateX(10px); }
+    }
+    
+    .toast {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-full);
+        padding: var(--spacing-sm) var(--spacing-lg);
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        box-shadow: var(--shadow-md);
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 600;
+    }
+    
+    .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
     }
 `;
 document.head.appendChild(style);

@@ -18,39 +18,85 @@
 
 <body>
     <div class="app-container">
-        <!-- Welcome/Join Screen -->
+        <!-- Welcome/Homepage Screen -->
         <div id="welcome-screen" class="screen active">
-            <div class="setup-card">
-                <div class="logo">
+            <div class="homepage-container">
+                <div class="homepage-header">
                     <span class="logo-icon">⚖️</span>
                     <h1>Debt Tracker</h1>
                     <p class="tagline">Keep it fair, keep it synced</p>
                 </div>
 
-                <div class="welcome-options">
-                    <button type="button" id="new-tracker-btn" class="primary-btn">
-                        <span>➕</span> Create New Tracker
-                    </button>
-
-                    <!-- Recent Trackers Section -->
-                    <div id="history-section" class="history-section" style="display: none;">
-                        <div class="divider-text">
-                            <span>my trackers</span>
+                <!-- Bookmarked Trackers Section -->
+                <div id="bookmarks-section" class="bookmarks-section">
+                    <div class="section-header">
+                        <h2>📌 My Trackers</h2>
+                        <button type="button" id="import-tracker-btn" class="icon-btn" title="Import a tracker code">
+                            <span>➕</span>
+                        </button>
+                    </div>
+                    <div id="bookmarks-list" class="bookmarks-list">
+                        <div class="empty-bookmarks">
+                            <span class="empty-icon">📋</span>
+                            <p>No bookmarked trackers yet</p>
+                            <p class="empty-hint">Create a new tracker or import one below</p>
                         </div>
-                        <div id="tracker-history" class="tracker-history"></div>
                     </div>
+                </div>
 
-                    <div class="divider-text">
-                        <span>or join existing</span>
+                <!-- Import Tracker Modal (inline) -->
+                <div id="import-form" class="import-form" style="display: none;">
+                    <div class="import-header">
+                        <h3>Import Tracker</h3>
+                        <button type="button" id="import-cancel-btn" class="text-btn">Cancel</button>
                     </div>
+                    <div class="input-group">
+                        <label for="import-code">Tracker Code</label>
+                        <input type="text" id="import-code" placeholder="Enter 6-character code..." autocomplete="off"
+                            maxlength="6">
+                    </div>
+                    <button type="button" id="import-submit-btn" class="primary-btn">
+                        <span>📥</span> Import & Bookmark
+                    </button>
+                </div>
 
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button type="button" id="new-tracker-btn" class="action-card primary-action">
+                        <span class="action-icon">✨</span>
+                        <div class="action-text">
+                            <span class="action-title">Create New</span>
+                            <span class="action-desc">Start a new tracker</span>
+                        </div>
+                    </button>
+                    <button type="button" id="join-tracker-btn" class="action-card secondary-action">
+                        <span class="action-icon">🔗</span>
+                        <div class="action-text">
+                            <span class="action-title">Join Existing</span>
+                            <span class="action-desc">Enter a tracker code</span>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Join Form (hidden by default) -->
+                <div id="join-form" class="join-form" style="display: none;">
                     <div class="input-group">
                         <label for="join-code">Tracker Code</label>
-                        <input type="text" id="join-code" placeholder="Enter code to join..." autocomplete="off">
+                        <input type="text" id="join-code" placeholder="Enter code to join..." autocomplete="off"
+                            maxlength="6">
                     </div>
-                    <button type="button" id="join-btn" class="secondary-btn">
-                        Join Tracker
-                    </button>
+                    <div class="join-actions">
+                        <button type="button" id="join-cancel-btn" class="text-btn">Cancel</button>
+                        <button type="button" id="join-btn" class="primary-btn">
+                            Join Tracker
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Device Info -->
+                <div class="device-info">
+                    <span class="device-icon">💾</span>
+                    <span>Bookmarks saved on this device</span>
                 </div>
             </div>
         </div>
@@ -95,15 +141,20 @@
         <div id="tracker-screen" class="screen">
             <!-- Header with Balance -->
             <header class="tracker-header">
-                <button class="header-btn switch-btn" id="switch-btn" title="Switch Tracker">
-                    <span>📋</span>
+                <button class="header-btn home-btn" id="home-btn" title="Back to Home">
+                    <span>🏠</span>
                 </button>
                 <div class="balance-display">
                     <div class="balance-text" id="balance-text">All squared up! ✨</div>
                 </div>
-                <button class="header-btn share-btn" id="share-btn" title="Share this tracker">
-                    <span>🔗</span>
-                </button>
+                <div class="header-actions">
+                    <button class="header-btn bookmark-btn" id="bookmark-btn" title="Bookmark this tracker">
+                        <span id="bookmark-icon">☆</span>
+                    </button>
+                    <button class="header-btn share-btn" id="share-btn" title="Share this tracker">
+                        <span>🔗</span>
+                    </button>
+                </div>
             </header>
 
             <!-- Share Modal -->
@@ -130,22 +181,7 @@
                 </div>
             </div>
 
-            <!-- Switcher Modal -->
-            <div id="switcher-modal" class="modal">
-                <div class="modal-backdrop"></div>
-                <div class="modal-content switcher-content">
-                    <div class="modal-header">
-                        <h3>Switch Tracker</h3>
-                        <button class="modal-close" id="switcher-modal-close">×</button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="switcher-list" class="switcher-list"></div>
-                        <button type="button" id="switcher-new-btn" class="secondary-btn switcher-new-btn">
-                            <span>➕</span> New Tracker
-                        </button>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- Split View -->
             <main class="split-view">

@@ -690,33 +690,347 @@ body {
 }
 
 /* ================================
-   Welcome Screen
+   Homepage Screen
    ================================ */
 #welcome-screen {
-    align-items: center;
-    justify-content: center;
     padding: var(--spacing-lg);
     background:
         radial-gradient(ellipse at top, rgba(139, 92, 246, 0.15), transparent 50%),
         radial-gradient(ellipse at bottom, rgba(59, 130, 246, 0.1), transparent 50%),
         var(--bg-dark);
+    overflow-y: auto;
 }
 
 #welcome-screen.active {
-    display: flex;
+    display: block;
 }
 
-.welcome-options {
+.homepage-container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: var(--spacing-lg) 0;
+}
+
+.homepage-header {
+    text-align: center;
+    margin-bottom: var(--spacing-2xl);
+}
+
+.homepage-header .logo-icon {
+    font-size: 3.5rem;
+    display: block;
+    margin-bottom: var(--spacing-md);
+    animation: float 3s ease-in-out infinite;
+}
+
+.homepage-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--spacing-xs);
+}
+
+.homepage-header .tagline {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* ================================
+   Bookmarks Section
+   ================================ */
+.bookmarks-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md);
+}
+
+.section-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.icon-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-base);
+    font-size: 1rem;
+}
+
+.icon-btn:hover {
+    background: var(--surface-light);
+    border-color: var(--primary);
+}
+
+.bookmarks-list {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    max-height: 280px;
+    overflow-y: auto;
 }
 
-.divider-text {
+.empty-bookmarks {
     text-align: center;
+    padding: var(--spacing-xl) var(--spacing-md);
+}
+
+.empty-bookmarks .empty-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+}
+
+.empty-bookmarks p {
     color: var(--text-muted);
-    font-size: 0.85rem;
-    padding: var(--spacing-sm) 0;
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-xs);
+}
+
+.empty-bookmarks .empty-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Bookmark Item */
+.bookmark-item {
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.bookmark-item:hover {
+    background: var(--surface-light);
+    border-color: var(--primary);
+    transform: translateX(4px);
+}
+
+.bookmark-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.bookmark-names {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bookmark-code {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: monospace;
+    margin-top: 2px;
+}
+
+.bookmark-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    transition: var(--transition-base);
+    font-size: 1.1rem;
+    opacity: 0;
+}
+
+.bookmark-item:hover .bookmark-delete {
+    opacity: 1;
+}
+
+.bookmark-delete:hover {
+    color: var(--accent-red);
+    background: var(--accent-red-glow);
+}
+
+/* ================================
+   Import Form
+   ================================ */
+.import-form {
+    background: var(--bg-card);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.import-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md);
+}
+
+.import-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* ================================
+   Quick Actions
+   ================================ */
+.quick-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--spacing-xl) var(--spacing-md);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: var(--transition-base);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-family: inherit;
+}
+
+.action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+.action-card.primary-action {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.1));
+    border-color: var(--primary);
+}
+
+.action-card.primary-action:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.15));
+    box-shadow: var(--shadow-md), 0 0 30px var(--primary-glow);
+}
+
+.action-card.secondary-action {
+    background: var(--surface);
+}
+
+.action-card.secondary-action:hover {
+    background: var(--surface-light);
+    border-color: var(--border-light);
+}
+
+.action-icon {
+    font-size: 2rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.action-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.action-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.action-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ================================
+   Join Form
+   ================================ */
+.join-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    animation: slideDown 0.3s ease;
+}
+
+.join-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    justify-content: flex-end;
+}
+
+/* ================================
+   Device Info
+   ================================ */
+.device-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.device-icon {
+    font-size: 1rem;
+}
+
+/* ================================
+   Header Actions Group
+   ================================ */
+.header-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.bookmark-btn span {
+    font-size: 1.2rem;
+    transition: var(--transition-base);
+}
+
+.bookmark-btn.bookmarked span {
+    color: var(--accent-amber);
 }
 
 .secondary-btn {
