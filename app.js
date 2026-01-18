@@ -611,6 +611,17 @@ class DebtTracker {
 
     // Delete an entry
     deleteEntry(personKey, entryId) {
+        // Find the entry to show details in confirmation
+        const entry = this.data.entries[personKey].find(e => e.id === entryId);
+        if (!entry) return;
+
+        const entryDesc = entry.description || 'this entry';
+        const confirmMessage = `Delete ${entryDesc} ($${entry.amount})?`;
+
+        if (!confirm(confirmMessage)) {
+            return; // User cancelled
+        }
+
         this.data.entries[personKey] = this.data.entries[personKey].filter(e => e.id !== entryId);
         this.saveData();
 
@@ -618,6 +629,8 @@ class DebtTracker {
             this.renderEntries();
             this.updateBalance();
         }
+
+        this.showToast('Entry deleted');
     }
 
     // Save data to Firebase or localStorage
