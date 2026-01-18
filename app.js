@@ -682,15 +682,17 @@ class DebtTracker {
             column1.classList.add('even');
             column2.classList.add('even');
         } else if (diff > 0) {
-            balanceText.textContent = `${this.data.person1} owes $${Math.abs(diff)}`;
-            balanceText.classList.add('owes-1');
-            column1.classList.add('owes');
-            column2.classList.add('owed');
-        } else {
+            // person1 spent more, so person2 owes person1
             balanceText.textContent = `${this.data.person2} owes $${Math.abs(diff)}`;
             balanceText.classList.add('owes-2');
             column1.classList.add('owed');
             column2.classList.add('owes');
+        } else {
+            // person2 spent more, so person1 owes person2
+            balanceText.textContent = `${this.data.person1} owes $${Math.abs(diff)}`;
+            balanceText.classList.add('owes-1');
+            column1.classList.add('owes');
+            column2.classList.add('owed');
         }
     }
 
