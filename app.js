@@ -22,8 +22,65 @@ class DebtTracker {
         this.data = this.getDefaultData();
         this.isFirebaseReady = false;
         this.bookmarks = this.loadBookmarks();
+        this.deviceId = this.getDeviceId();
+        this.notificationsEnabled = this.getNotificationPreference();
 
         this.init();
+    }
+
+    // Get or create a unique device ID
+    getDeviceId() {
+        let deviceId = localStorage.getItem('debtTrackerDeviceId');
+        if (!deviceId) {
+            deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('debtTrackerDeviceId', deviceId);
+        }
+        return deviceId;
+    }
+
+    // Get notification preference
+    getNotificationPreference() {
+        const pref = localStorage.getItem('debtTrackerNotifications');
+        return pref === null ? true : pref === 'true';
+    }
+
+    // Save notification preference
+    saveNotificationPreference(enabled) {
+        this.notificationsEnabled = enabled;
+        localStorage.setItem('debtTrackerNotifications', enabled.toString());
+    }
+
+    // Request notification permission
+    async requestNotificationPermission() {
+        if (!('Notification' in window)) {
+            console.log('This browser does not support notifications');
+            return false;
+        }
+
+        if (Notification.permission === 'granted') {
+            return true;
+        }
+
+        if (Notification.permission !== 'denied') {
+            const permission = await Notification.requestPermission();
+            return permission === 'granted';
+        }
+
+        return false;
+    }
+
+    // Show a browser notification
+    showNotification(title, body) {
+        if (!this.notificationsEnabled) return;
+
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body: body,
+                icon: '/icons/icon-192.png',
+                badge: '/icons/icon-192.png',
+                tag: 'debt-tracker-update'
+            });
+        }
     }
 
     // Load bookmarks from localStorage (device-specific)
@@ -482,6 +539,9 @@ class DebtTracker {
     setupRealtimeListener() {
         if (!this.isFirebaseReady || !this.trackerRef) return;
 
+        // Track if this is the first load
+        let isFirstLoad = true;
+
         this.trackerRef.on('value', (snapshot) => {
             if (snapshot.exists()) {
                 const newData = snapshot.val();
@@ -492,12 +552,46 @@ class DebtTracker {
                 if (!newData.entries.person1) newData.entries.person1 = [];
                 if (!newData.entries.person2) newData.entries.person2 = [];
 
+                // Check for new entries from other devices (skip on first load)
+                if (!isFirstLoad) {
+                    this.checkForNewEntries(newData);
+                }
+
                 this.data = newData;
                 this.renderEntries();
                 this.updateBalance();
                 this.showSyncSuccess();
+
+                isFirstLoad = false;
             }
         });
+    }
+
+    // Check for new entries and notify if added by another device
+    checkForNewEntries(newData) {
+        const checkPerson = (personKey) => {
+            const newEntries = newData.entries[personKey] || [];
+            const oldEntries = this.data.entries[personKey] || [];
+
+            // Find entries that are new and not added by this device
+            newEntries.forEach(newEntry => {
+                const existsInOld = oldEntries.some(old => old.id === newEntry.id);
+                const notByMe = newEntry.addedBy !== this.deviceId;
+
+                if (!existsInOld && notByMe) {
+                    // New entry from another device!
+                    const personName = personKey === 'person1' ? newData.person1 : newData.person2;
+                    const desc = newEntry.description || 'an entry';
+                    this.showNotification(
+                        `${personName} added ${desc}`,
+                        `$${newEntry.amount}`
+                    );
+                }
+            });
+        };
+
+        checkPerson('person1');
+        checkPerson('person2');
     }
 
     // Show tracker screen
@@ -514,6 +608,11 @@ class DebtTracker {
         if (this.trackerId) {
             const newUrl = window.location.pathname + '?t=' + this.trackerId;
             window.history.replaceState({}, '', newUrl);
+        }
+
+        // Request notification permission (non-blocking)
+        if (this.notificationsEnabled && Notification.permission === 'default') {
+            setTimeout(() => this.requestNotificationPermission(), 1000);
         }
     }
 
@@ -583,7 +682,8 @@ class DebtTracker {
             id: Date.now(),
             amount: amount,
             description: description || null,
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            addedBy: this.deviceId
         };
 
         const personKey = person === '1' ? 'person1' : 'person2';
