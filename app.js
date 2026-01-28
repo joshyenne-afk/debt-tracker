@@ -208,8 +208,8 @@ class DebtTracker {
         );
 
         container.innerHTML = sortedBookmarks.map(b => `
-            <div class="bookmark-item" data-tracker-id="${b.trackerId}">
-                <div class="bookmark-info" onclick="tracker.openBookmark('${b.trackerId}')">
+            <div class="bookmark-item" data-tracker-id="${b.trackerId}" onclick="tracker.openBookmark('${b.trackerId}')">
+                <div class="bookmark-info">
                     <div class="bookmark-names">${this.escapeHtml(b.person1)} ↔ ${this.escapeHtml(b.person2)}</div>
                     <div class="bookmark-code">${b.trackerId}</div>
                 </div>
