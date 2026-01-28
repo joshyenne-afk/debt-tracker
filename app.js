@@ -492,6 +492,18 @@ class DebtTracker {
                 if (!newData.entries.person1) newData.entries.person1 = [];
                 if (!newData.entries.person2) newData.entries.person2 = [];
 
+                // Detect remote changes (alert if new entries added)
+                const oldTotal = (this.data.entries.person1?.length || 0) + (this.data.entries.person2?.length || 0);
+                const newTotal = (newData.entries.person1?.length || 0) + (newData.entries.person2?.length || 0);
+                
+                // Only toast if we already had data (not first load) and count increased
+                // Note: local writes update this.data immediately, so they won't trigger this (newTotal == oldTotal)
+                if (newTotal > oldTotal) {
+                    this.showToast('New entry added!');
+                    // Optional sound effect?
+                    // new Audio('/sounds/notification.mp3').play().catch(() => {}); 
+                }
+
                 this.data = newData;
                 this.renderEntries();
                 this.updateBalance();
